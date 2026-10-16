@@ -19,7 +19,7 @@ pub enum Token {
     Plus,
     Minus,
     Star,
-    Slash,
+    Hash,
     // structure
     Newline,
     Eof,
@@ -107,7 +107,18 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                 continue;
             }
             '*' => Some(Token::Star),
-            '/' => Some(Token::Slash),
+            '#' => {
+                lx.bump();
+
+                // consume everything untill the newline
+                while let Some(ch) = lx.peek() {
+                    if ch == '\n' {
+                        break;
+                    }
+                    lx.bump();
+                }
+                continue;
+            }
             '\n' => Some(Token::Newline),
             _ => None,
         };
@@ -307,5 +318,17 @@ mod test {
 
         assert_eq!(toks[0].token, Token::Minus);
         assert_eq!(toks[1].token, Token::Arrow);
+    }
+    #[test]
+    fn comments() {
+        let src = "measure q0 # this is a comment\nbarrier";
+
+        let toks = lex(src).unwrap();
+
+        assert_eq!(toks[0].token, Token::Measure);
+        assert_eq!(toks[1].token, Token::Ident("q0".to_string()));
+        assert_eq!(toks[2].token, Token::Newline);
+        assert_eq!(toks[3].token, Token::Barrier);
+        assert_eq!(toks[4].token, Token::Eof);
     }
 }
