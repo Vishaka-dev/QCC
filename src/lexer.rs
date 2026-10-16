@@ -331,4 +331,19 @@ mod test {
         assert_eq!(toks[3].token, Token::Barrier);
         assert_eq!(toks[4].token, Token::Eof);
     }
+
+    #[test]
+    fn bad_char_errors_with_position() {
+        let err = lex("H q0\n  @").unwrap_err();
+        assert_eq!(err.line, 2);
+        assert_eq!(err.col, 3);
+    }
+    
+    #[test]
+    fn lexes_bell_circuit() {
+        let src = "circuit bell(2) {\n    H q0\n    CNOT q0 q1\n    measure q0 -> c0\n}\n";
+        let toks = lex(src).unwrap();
+        assert_eq!(toks.first().unwrap().token, Token::Circuit);
+        assert_eq!(toks.last().unwrap().token, Token::Eof);
+    }
 }
