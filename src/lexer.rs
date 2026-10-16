@@ -19,8 +19,9 @@ pub enum Token {
     Plus,
     Minus,
     Star,
-    Hash,
+    Slash,
     // structure
+    Hash,
     Newline,
     Eof,
 }
@@ -107,6 +108,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                 continue;
             }
             '*' => Some(Token::Star),
+            '/' => Some(Token::Slash),
             '#' => {
                 lx.bump();
 
@@ -338,7 +340,7 @@ mod test {
         assert_eq!(err.line, 2);
         assert_eq!(err.col, 3);
     }
-    
+
     #[test]
     fn lexes_bell_circuit() {
         let src = "circuit bell(2) {\n    H q0\n    CNOT q0 q1\n    measure q0 -> c0\n}\n";
