@@ -161,6 +161,20 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                 number.push('.');
                 lx.bump();
 
+                match lx.peek() {
+                    Some(ch) if ch.is_ascii_digit() => {}
+                    _ => {
+                        return Err(LexError {
+                            message: format!(
+                                "Expected digit after decimal point in {} at line: {}, collumn: {}.",
+                                number, line, col
+                            ),
+                            line,
+                            col,
+                        });
+                    }
+                }
+
                 // consume the decimal digits after the '.'
                 while let Some(ch) = lx.peek() {
                     if ch.is_ascii_digit() {
@@ -272,10 +286,19 @@ mod test {
 
     #[test]
     fn numbers() {
-        let toks = lex("2 3.14").unwrap();
+        let toks = lex("2 3.14 ").unwrap();
 
         assert_eq!(toks[0].token, Token::Int(2));
         assert_eq!(toks[1].token, Token::Float(3.14));
+    }
+
+    #[test]
+    fn rejects_float_without_decimal_digits() {
+        assert!(lex("3.").is_err());
+        assert!(lex("3.a").is_err());
+
+        assert!(lex("3.0").is_ok());
+        assert!(lex("3.14").is_ok());
     }
 
     #[test]
