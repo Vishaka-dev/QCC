@@ -8,13 +8,12 @@ pub enum Gate {
 }
 
 impl Gate {
-    pun fn qubits(&self) -> Vec<usize> {
+    pub fn qubits(&self) -> Vec<usize> {
         match self {
-            Gate::H { qubit }
-            | Gate::X { qubit }
-            | Gate::Y { qubit }
-            | Gate::Z { qubit } => vec![*qubit],
-            Gate::CNOT { control, target } => vec![ *control, *target ],
+            Gate::H { qubit } | Gate::X { qubit } | Gate::Y { qubit } | Gate::Z { qubit } => {
+                vec![*qubit]
+            }
+            Gate::CNOT { control, target } => vec![*control, *target],
         }
     }
 }
