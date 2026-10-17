@@ -112,7 +112,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
             '#' => {
                 lx.bump();
 
-                // consume everything untill the newline
+                // consume everything until the newline
                 while let Some(ch) = lx.peek() {
                     if ch == '\n' {
                         break;
@@ -129,7 +129,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
             lx.bump();
             tokens.push(Spanned { token, line, col });
             continue;
-        };
+        }
 
         // -------------------- Identifier token catcher -----------------
         if c.is_alphabetic() || c == '_' {
@@ -168,7 +168,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                 }
             }
 
-            // cheak for decimal part
+            // check for decimal part
             if lx.peek() == Some('.') {
                 is_float = true;
                 number.push('.');
@@ -178,10 +178,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                     Some(ch) if ch.is_ascii_digit() => {}
                     _ => {
                         return Err(LexError {
-                            message: format!(
-                                "Expected digit after decimal point in {} at line: {}, collumn: {}.",
-                                number, line, col
-                            ),
+                            message: format!("Expected digit after decimal point in {}.", number),
                             line,
                             col,
                         });
@@ -205,10 +202,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                     Ok(value) => Token::Float(value),
                     Err(_) => {
                         return Err(LexError {
-                            message: format!(
-                                "Invalid float litteral: {} in line: {}, collumn: {}.",
-                                number, line, col
-                            ),
+                            message: format!("Invalid float literal: {}.", number),
                             line,
                             col,
                         });
@@ -219,10 +213,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
                     Ok(value) => Token::Int(value),
                     Err(_) => {
                         return Err(LexError {
-                            message: format!(
-                                "Invalid integer litteral: {} in line: {}, collumn: {}.",
-                                number, line, col
-                            ),
+                            message: format!("Invalid integer literal: {}.", number),
                             line,
                             col,
                         });
@@ -235,10 +226,7 @@ pub fn lex(src: &str) -> Result<Vec<Spanned>, LexError> {
         }
 
         return Err(LexError {
-            message: format!(
-                "Unexpected character: '{}' at line: {}, collumn: {}",
-                c, line, col
-            ),
+            message: format!("Unexpected character: '{}'.", c),
             line,
             col,
         });
