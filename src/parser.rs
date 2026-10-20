@@ -1,4 +1,4 @@
-use crate::ast::{ BinOp, Expr };
+use crate::ast::{ BinOp, Expr, Ref};
 use crate::lexer::{ Spanned, Token } ;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,6 +19,55 @@ impl Parser {
             tokens,
             pos: 0,
         }
+    }
+    fn skip_newline(&mut self) {
+        while self.peek().token == Token::Newline {
+            self.advance();
+        }
+    }
+    fn parse_ref(&mut self, prefix: char, what: &str) -> Result<crate::ast::Ref, ParseError> {
+        let line = self.peek().line;
+        let col = self.peek().col;
+
+        let token = self.peek().token.clone();
+
+        let name = match token {
+            Token::Ident(name) => name,
+            _ => {
+                return Err(ParseError{
+                    message: format!("expected a {}", what),
+                    line,
+                    col,
+                })
+            },
+        };
+        let digits = match name.strip_prefix(prefix) {
+            Some(digits) => digits,
+            None => {
+                return Err(ParseError{
+                    message: format!("expected a {} like {}0, found {}", what , prefix, name),
+                    line,
+                    col,
+                });
+            },
+        };
+        let index = match digits.parse::<usize>() {
+            Ok(index) => index,
+            Err(_) =>{
+                return Err(ParseError {
+                    message: format!("expected a {} like {}0, found '{}'", what, prefix, name),
+                    line,
+                    col,
+                });
+            },
+        };
+        self.advance();
+
+        Ok(crate::ast::Ref {
+            index,
+            line,
+            col,
+        })  
     }
     fn peek(&self) -> &Spanned {
         &self.tokens[self.pos]
@@ -222,5 +271,40 @@ mod test {
         assert!(parse_str("(").is_err());
         assert!(parse_str("(3").is_err());
         assert!(parse_str("3 4").is_err());
+    }
+    #[test]
+    fn parse_qubit_refs() {
+        let tokens = lex("q0 q12").unwrap();
+        let mut parser = Parser::new(tokens);
+
+        let q0 = parser.parse_ref('q', "qubit").unwrap();
+        let q12 = parser.parse_ref('q', "qubit").unwrap();
+
+        assert_eq!(q0.index, 0);
+        assert_eq!(q12.index, 12);
+    }
+    #[test]
+    fn parse_qubit_ref_errors() {
+        for source in ["x0", "q", "qa", "5"] {
+            let tokens = lex(source).unwrap();
+            let mut parser = Parser::new(tokens);
+
+            assert!(
+                parser.parse_ref('q', "qubit").is_err(),
+                "{} should be rejected",
+                source
+            );
+        }
+    }
+    #[test]
+    fn parse_classical_refs() {
+        let tokens = lex("c0 c12").unwrap();
+        let mut parser = Parser::new(tokens);
+
+        let c0 = parser.parse_ref('c', "classical bit").unwrap();
+        let c12 = parser.parse_ref('c', "classical bit").unwrap();
+
+        assert_eq!(c0.index, 0);
+        assert_eq!(c12.index, 12);
     }
 }
