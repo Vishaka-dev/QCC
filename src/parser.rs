@@ -20,7 +20,7 @@ impl Parser {
             pos: 0,
         }
     }
-    fn skip_newline(&mut self) {
+    fn skip_newlines(&mut self) {
         while self.peek().token == Token::Newline {
             self.advance();
         }
@@ -260,6 +260,122 @@ impl Parser {
         }
         Ok (Stmt {
             kind: StmtKind::Barrier { qubits },
+            line,
+            col,
+        })
+    }
+    fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+        match self.peek().token {
+            Token::Measure => self.parse_measure(),
+            Token::Barrier => self.parse_barrier(),
+            Token::Ident(_) => self.parse_gate(),
+            _ => Err(ParseError {
+                message: "expected a gate, measure, or barrier".to_string(),
+                line: self.peek().line,
+                col: self.peek().col,
+            }),
+        }
+    }
+    fn parse_circuit(&mut self) -> Result<CircuitDef, ParseError> {
+        let line = self.peek().line;
+        let col = self.peek().col;
+
+        self.expect(Token::Circuit, "'circuit'")?;
+
+        let name = match self.peek().token.clone() {
+            Token::Ident(name) => {
+                self.advance();
+                name
+            },
+            _ => {
+                return Err(ParseError {
+                    message: "expected circuit name".to_string(),
+                    line: self.peek().line,
+                    col: self.peek().col,
+                })
+            },
+        };
+
+        self.expect(Token::LParen, "'('")?;
+
+        let qubit_count = match self.peek().token.clone() {
+            Token::Int(count) => {
+                if count == 0 {
+                    return Err(ParseError {
+                        message: "qubit count must be at least 1".to_string(),
+                        line: self.peek().line,
+                        col: self.peek().col,
+                    });
+                }
+                self.advance();
+                count
+            }
+            _ => {
+                return Err(ParseError {
+                    message: "qubit count must be a whole number".to_string(),
+                    line: self.peek().line,
+                    col: self.peek().col,
+                });
+            }
+        };
+
+        let clbit_count = if self.peek().token == Token::Comma {
+            self.advance();
+            
+            match self.peek().token.clone() {
+                Token::Int(count) => {
+                    self.advance();
+                    Some(count)
+                }
+                _ => {
+                    return Err(ParseError {
+                        message: "classical bit count must be a whole number".to_string(),
+                        line: self.peek().line,
+                        col: self.peek().col,
+                    });
+                }
+            }
+        } else {
+            None
+        };
+
+        self.expect(Token::RParen, "')'")?;
+        self.expect(Token::LBrace, "'{'")?;
+        
+        self.skip_newlines();
+
+        let mut body = Vec::new();
+
+        loop {
+            match self.peek().token {
+                Token::RBrace => {
+                    self.advance();
+                    break;
+                },
+                Token::Eof => {
+                    return Err(ParseError {
+                        message: "unclosed circuit, missing '}'".to_string(),
+                        line: self.peek().line,
+                        col: self.peek().col,
+                    });
+                },
+                Token::Circuit => {
+                    return Err(ParseError {
+                        message: "unclosed circuit, missing '}' before next circuit".to_string(),
+                        line: self.peek().line,
+                        col: self.peek().col,
+                    });
+                },
+                _ => {
+                    body.push(self.parse_statement()?);
+                }
+            }
+        }
+        Ok(CircuitDef {
+            name,
+            qubit_count,
+            clbit_count,
+            body,
             line,
             col,
         })
