@@ -226,6 +226,44 @@ impl Parser {
             col,
         })
     }
+    fn parse_measure(&mut self) -> Result<Stmt, ParseError> {
+        let line = self.peek().line;
+        let col = self.peek().col;
+
+        self.expect(Token::Measure, "'measure'")?;
+
+        let qubit = self.parse_ref('q', "'qubit'")?;
+
+        self.expect(Token::Arrow, "->")?;
+
+        let clbit = self.parse_ref('c', "'classical bit'")?;
+
+        Ok (Stmt {
+            kind: StmtKind::Measure {
+                qubit,
+                clbit,
+            },
+            line,
+            col,
+        })
+    }
+    fn parse_barrier(&mut self) -> Result<Stmt, ParseError> {
+        let line = self.peek().line;
+        let col = self.peek().col;
+
+        self.expect(Token::Barrier, "'barrier'");
+
+        let mut qubits = Vec::new();
+
+        while matches!(self.peek().token, Token::Ident(_)) {
+            qubits.push(self.parse_ref('q', "quibit")?);
+        }
+        Ok (Stmt {
+            kind: StmtKind::Barrier { qubits },
+            line,
+            col,
+        })
+    }
 }
 
 #[cfg(test)]
