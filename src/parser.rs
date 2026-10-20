@@ -53,9 +53,9 @@ impl Parser {
                 Ok(Expr::Number(x))
             }
             Token::Ident(name) => {
-                self.advance();
                 
                 if name == "pi" {
+                    self.advance();
                     Ok(Expr::Pi)
                 } else {
                     Err(ParseError {
@@ -181,6 +181,7 @@ mod test {
             Expr::Neg(Box::new(Expr::Number(3.0)))
         );
     }
+    #[test]
     fn mul_has_higher_prsident_than_addition() {
         let expr = parse_str("1+2*3").unwrap();
 
@@ -198,5 +199,28 @@ mod test {
                 )
             }
         );
+    }
+    #[test]
+    fn primary_number() {
+        assert_eq!(parse_str("3").unwrap(), Expr::Number(3.0));
+        assert_eq!(parse_str("2.5").unwrap(), Expr::Number(2.5));
+    }
+
+    #[test]
+    fn primary_pi() {
+        assert_eq!(parse_str("pi").unwrap(), Expr::Pi);
+    }
+
+    #[test]
+    fn primary_parens() {
+        assert_eq!(parse_str("(4)").unwrap(), Expr::Number(4.0));
+    }
+
+    #[test]
+    fn primary_errors() {
+        assert!(parse_str("foo").is_err());
+        assert!(parse_str("(").is_err());
+        assert!(parse_str("(3").is_err());
+        assert!(parse_str("3 4").is_err());
     }
 }
