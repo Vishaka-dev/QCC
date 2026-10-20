@@ -108,12 +108,30 @@ impl Parser {
                 left: Box::new(lhs),
                 op,
                 right: Box::new(rhs),
-            }
+            };
         }
         Ok(lhs)
     }
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.parse_term()
+        let mut lhs = self.parse_term()?;
+
+        loop {
+            let op = match self.peek().token {
+                Token::Plus => BinOp::Add,
+                Token::Minus => BinOp::Sub,
+                _ => break,
+            };
+            self.advance();
+
+            let rhs = self.parse_term()?;
+
+            lhs = Expr::Binary {
+                left: Box::new(lhs),
+                op,
+                right: Box::new(rhs),
+            };
+        }
+        Ok(lhs)
     }
 }
 
@@ -121,6 +139,16 @@ impl Parser {
 mod test {
     use super::*;
     use crate::lexer::lex;
+
+    fn parse_str(src: &str) -> Result<Expr, ParseError> {
+        let tokens = crate::lexer::lex(src).unwrap();
+
+        let mut parser = Parser::new(tokens);
+        let expr = parser.parse_expr()?;
+
+        parser.expect(Token::Eof, "end of expresion")?;
+        Ok(expr)
+    }
 
     #[test]
     fn parse_integer_primary() {
@@ -151,6 +179,24 @@ mod test {
         assert_eq!(
             expr,
             Expr::Neg(Box::new(Expr::Number(3.0)))
+        );
+    }
+    fn mul_has_higher_prsident_than_addition() {
+        let expr = parse_str("1+2*3").unwrap();
+
+        assert_eq!(
+            expr,
+            Expr::Binary {
+                left: Box::new(Expr::Number(1.0)),
+                op: BinOp::Add,
+                right: Box::new(
+                    Expr::Binary {
+                        left: Box::new(Expr::Number(2.0)),
+                        op: BinOp::Mul,
+                        right: Box::new(Expr::Number(3.0)),
+                    }
+                )
+            }
         );
     }
 }
