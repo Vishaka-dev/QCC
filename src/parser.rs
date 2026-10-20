@@ -74,7 +74,7 @@ impl Parser {
                 Ok(expr)
             }
             _ => Err(ParseError {
-                message: "Ecpected a number, pi or (".to_string(),
+                message: "Ecpected a number, 'pi' or '('".to_string(),
                 line: self.peek().line,
                 col: self.peek().col,
             })
@@ -146,7 +146,7 @@ mod test {
         let mut parser = Parser::new(tokens);
         let expr = parser.parse_expr()?;
 
-        parser.expect(Token::Eof, "end of expresion")?;
+        parser.expect(Token::Eof, "end of expression")?;
         Ok(expr)
     }
 

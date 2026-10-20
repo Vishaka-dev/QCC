@@ -39,6 +39,51 @@ impl Expr {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Ref {
+    pub index: usize,
+    pub line: usize,
+    pub col: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StmtKind {
+    Gate {
+        name: String,
+        angle: Option<Expr>,
+        quibit: Vec<Ref>,
+    },
+    Measure {
+        qubit: Ref,
+        clbit: Ref,
+    },
+    Barrier {
+        qubits: Vec<Ref>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Stmt {
+    pub kind: StmtKind,
+    pub line: usize,
+    pub col: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CircuitDef {
+    pub name: String,
+    pub qubit_count: usize,
+    pub clbit_count: Option<usize>,
+    pub body: Vec<Stmt>,
+    pub line: usize,
+    pub col: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Program {
+    pub circuits: Vec<CircuitDef>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
