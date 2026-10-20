@@ -347,6 +347,8 @@ impl Parser {
         let mut body = Vec::new();
 
         loop {
+            self.skip_newlines();
+            
             match self.peek().token {
                 Token::RBrace => {
                     self.advance();
@@ -380,6 +382,22 @@ impl Parser {
             col,
         })
     }
+    fn parse_program(&mut self) -> Result<Program, ParseError> {
+        self.skip_newlines();
+
+        let mut circuits = Vec::new();
+
+        while self.peek().token != Token::Eof {
+            circuits.push(self.parse_circuit()?);
+            self.skip_newlines();
+        }
+        Ok(Program { circuits })
+    }
+}
+
+pub fn parse(tokens: Vec<Spanned>) -> Result<Program, ParseError> {
+    let mut parser = Parser::new(tokens);
+    parser.parse_program()
 }
 
 #[cfg(test)]
@@ -510,7 +528,7 @@ mod test {
         let tokens = lex("H q0").unwrap();
         let mut parser = Parser::new(tokens);
 
-        let stmt = Parser.parse_gate().unwrap();
+        let stmt = parser.parse_gate().unwrap();
 
         match stmt.kind {
             StmtKind::Gate {
@@ -532,5 +550,68 @@ mod test {
         let mut parser = Parser::new(tokens);
 
         assert!(parser.parse_gate().is_err());
+    }
+    #[test]
+    fn error_float_qubit_count() {
+        let tokens = lex("circuit bell(2.5) {}").unwrap();
+
+        let err = parse(tokens).unwrap_err();
+
+        assert_eq!(err.message, "qubit count must be a whole number");
+        assert_eq!(err.line, 1);
+        assert_eq!(err.col, 14);
+    }
+    #[test]
+    fn error_gate_without_qubit() {
+        let tokens = lex("circuit bell(2) { H }").unwrap();
+
+        let err = parse(tokens).unwrap_err();
+
+        assert_eq!(err.message, "expected a qubit");
+        assert_eq!(err.line, 1);
+        assert_eq!(err.col, 21);
+    }
+    #[test]
+    fn error_invalid_extra_identifier_after_qubits() {
+        let tokens = lex("circuit bell(2) { H q0 q1 foo }").unwrap();
+
+        let err = parse(tokens).unwrap_err();
+
+        assert_eq!(
+            err.message,
+            "expected a qubit like q0, found foo"
+        );
+        assert_eq!(err.line, 1);
+        assert_eq!(err.col, 27);
+    }
+    #[test]
+    fn parse_multiple_circuits_with_comments_and_blank_lines() {
+        let source = r#"
+    # First circuit
+
+    circuit first(1) {
+        H q0
+    }
+
+    # Between circuits
+
+    circuit second(2) {
+
+        CNOT q0 q1
+    }
+    "#;
+
+        let tokens = lex(source).unwrap();
+        let program = parse(tokens).unwrap();
+
+        assert_eq!(program.circuits.len(), 2);
+
+        assert_eq!(program.circuits[0].name, "first");
+        assert_eq!(program.circuits[0].qubit_count, 1);
+        assert_eq!(program.circuits[0].body.len(), 1);
+
+        assert_eq!(program.circuits[1].name, "second");
+        assert_eq!(program.circuits[1].qubit_count, 2);
+        assert_eq!(program.circuits[1].body.len(), 1);
     }
 }
