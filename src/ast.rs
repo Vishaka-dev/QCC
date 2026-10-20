@@ -51,7 +51,7 @@ pub enum StmtKind {
     Gate {
         name: String,
         angle: Option<Expr>,
-        quibit: Vec<Ref>,
+        qubits: Vec<Ref>,
     },
     Measure {
         qubit: Ref,

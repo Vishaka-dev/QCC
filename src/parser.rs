@@ -1,4 +1,4 @@
-use crate::ast::{ BinOp, Expr, Ref};
+use crate::ast::*;
 use crate::lexer::{ Spanned, Token } ;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -182,6 +182,50 @@ impl Parser {
         }
         Ok(lhs)
     }
+    fn parse_gate(&mut self) -> Result<Stmt, ParseError> {
+        let line = self.peek().line;
+        let col = self.peek().col;
+
+        let name = match self.peek().token.clone() {
+            Token::Ident(name) => {
+                self.advance();
+                name
+            },
+            _ => {
+                return Err(ParseError {
+                    message: "expected gate name".to_string(),
+                    line,
+                    col,
+                });
+            },
+        };
+        let angle = if self.peek().token == Token::LParen {
+            self.advance();
+
+            let expr = self.parse_expr()?;
+
+            self.expect(Token::RParen, "')'")?;
+
+            Some(expr)
+        } else {
+            None
+        };
+        let first_qubit = self.parse_ref('q', "qubit")?;
+        let mut qubits = vec![first_qubit];
+
+        while matches!(self.peek().token, Token::Ident(_)) {
+            qubits.push(self.parse_ref('q', "qubit")?);
+        }
+        Ok(Stmt {
+            kind: StmtKind::Gate {
+                name,
+                angle,
+                qubits,
+            },
+            line,
+            col,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -306,5 +350,33 @@ mod test {
 
         assert_eq!(c0.index, 0);
         assert_eq!(c12.index, 12);
+    }
+    #[test]
+    fn parse_simple_gate() {
+        let tokens = lex("H q0").unwrap();
+        let mut parser = Parser::new(tokens);
+
+        let stmt = Parser.parse_gate().unwrap();
+
+        match stmt.kind {
+            StmtKind::Gate {
+                name,
+                angle,
+                qubits,
+            } => {
+                assert_eq!(name, "H");
+                assert_eq!(angle, None);
+                assert_eq!(qubits.len(), 1);
+                assert_eq!(qubits[0].index, 0);
+            }
+            _ => panic!("expected gate"),
+        }
+    }
+    #[test]
+    fn gate_requires_qubit() {
+        let tokens = lex("H").unwrap();
+        let mut parser = Parser::new(tokens);
+
+        assert!(parser.parse_gate().is_err());
     }
 }
