@@ -1,4 +1,4 @@
-use crate::ast::Expr;
+use crate::ast::{ BinOp, Expr };
 use crate::lexer::{ Spanned, Token } ;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -80,8 +80,40 @@ impl Parser {
             })
         }
     }
+    fn parse_unary(&mut self) -> Result<Expr, ParseError> {
+        if self.peek().token == Token::Minus {
+            self.advance();
+
+            let expr = self.parse_unary()?;
+
+            Ok(Expr::Neg(Box::new(expr)))
+        } else {
+            self.parse_primary()
+        }
+    }
+    fn parse_term(&mut self) ->Result<Expr, ParseError> {
+        let mut lhs = self.parse_unary()?;
+
+        loop {
+            let op = match self.peek().token {
+                Token::Star => BinOp::Mul,
+                Token::Slash => BinOp::Div,
+                _ => break,
+            };
+            self.advance();
+
+            let rhs = self.parse_unary()?;
+
+            lhs = Expr::Binary {
+                left: Box::new(lhs),
+                op,
+                right: Box::new(rhs),
+            }
+        }
+        Ok(lhs)
+    }
     fn parse_expr(&mut self) -> Result<Expr, ParseError> {
-        self.parse_primary()
+        self.parse_term()
     }
 }
 
@@ -108,5 +140,17 @@ mod test {
         let expr = parser.parse_primary().unwrap();
 
         assert_eq!(expr, Expr::Pi);
+    }
+    #[test]
+    fn parse_negative_number() {
+        let tokens = lex("-3").unwrap();
+        let mut parser = Parser::new(tokens);
+
+        let expr = parser.parse_expr().unwrap();
+
+        assert_eq!(
+            expr,
+            Expr::Neg(Box::new(Expr::Number(3.0)))
+        );
     }
 }
