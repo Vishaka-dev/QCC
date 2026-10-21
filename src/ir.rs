@@ -4,16 +4,43 @@ pub enum Gate {
     X { qubit: usize },
     Y { qubit: usize },
     Z { qubit: usize },
+
+    S { qubit: usize },
+    T { qubit: usize },
+
+    // to store angles
+    RX { qubit: usize, angle: f64 },
+    RY { qubit: usize, angle: f64 },
+    RZ { qubit: usize, angle: f64 },
+
     CNOT { control: usize, target: usize },
+    CZ { control: usize, target: usize },
+    SWAP { first: usize, second: usize },
 }
 
 impl Gate {
     pub fn qubits(&self) -> Vec<usize> {
         match self {
-            Gate::H { qubit } | Gate::X { qubit } | Gate::Y { qubit } | Gate::Z { qubit } => {
+            Gate::H { qubit }
+            | Gate::X { qubit }
+            | Gate::Y { qubit }
+            | Gate::Z { qubit }
+            | Gate::S { qubit }
+            | Gate::T { qubit }
+            | Gate::RX { qubit, .. }
+            | Gate::RY { qubit, .. }
+            | Gate::RZ { qubit, .. } => {
                 vec![*qubit]
             }
-            Gate::CNOT { control, target } => vec![*control, *target],
+
+            Gate::CNOT { control, target }
+            | Gate::CZ { control, target } => {
+                vec![*control, *target]
+            }
+
+            Gate::SWAP { first, second } => {
+                vec![*first, *second]
+            }
         }
     }
 }
@@ -22,6 +49,7 @@ impl Gate {
 pub enum Instruction {
     Gate(Gate),
     Measure { qubit: usize, clbit: usize },
+    Barrier { qubits: Vec<usize> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
