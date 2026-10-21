@@ -1,5 +1,6 @@
 use crate::ast::{Ref, Stmt, StmtKind};
 use crate::ir::{Gate, Instruction};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LowerError {
@@ -187,6 +188,51 @@ fn lower_stmt(stmt: &Stmt, qubit_count: usize, clbit_count: usize) -> Result< Ve
         },
     }
 }
+
+pub fn lower_circuit(def: &CircuitDef) -> Result<Circuit, LowerError> {
+    let clbit_count = def.clbit_count.unwrap_or(def.qubit_count);
+
+    let mut instructions = Vec::new();
+
+    for stmt in &def.body {
+        let lowered = lower_stmt(
+            stmt,
+            def.qubit_count,
+            clbit_count,
+        )?;
+
+        instructions.extend(lowered);
+    }
+
+    Ok(Circuit {
+        name: def.name.clone(),
+        qubit_count: def.qubit_count,
+        clbit_count,
+        instructions,
+    })
+}
+pub fn lower(program: &Program) -> Result<Vec<Circuit>, LowerError> {
+    let mut names = HashSet::new();
+    let mut circuits = Vec::new();
+
+    for def in &program.circuits {
+        if !names.insert(def.name.clone()) {
+            return Err(LowerError {
+                message: format!(
+                    "duplicate circuit name '{}'",
+                    def.name
+                ),
+                line: def.line,
+                col: def.col,
+            });
+        }
+
+        circuits.push(lower_circuit(def)?);
+    }
+
+    Ok(circuits)
+}
+
 
 #[cfg(test)]
 mod tests {
