@@ -189,10 +189,11 @@ fn lower_stmt(stmt: &Stmt, qubit_count: usize, clbit_count: usize) -> Result< Ve
     }
 }
 
-pub fn lower_circuit(def: &CircuitDef) -> Result<Circuit, LowerError> {
+pub fn lower_circuit(def: &CircuitDef) -> Result<(Circuit, Vec<( usize, usize )>), LowerError> {
     let clbit_count = def.clbit_count.unwrap_or(def.qubit_count);
 
     let mut instructions = Vec::new();
+    let mut spans = Vec::new();
 
     for stmt in &def.body {
         let lowered = lower_stmt(
@@ -201,17 +202,21 @@ pub fn lower_circuit(def: &CircuitDef) -> Result<Circuit, LowerError> {
             clbit_count,
         )?;
 
-        instructions.extend(lowered);
+        for instruction in lowered {
+            instructions.push(instruction);
+            spans.push((stmt.line, stmt.col));
+        }
     }
 
-    Ok(Circuit {
+    let circuit = Circuit {
         name: def.name.clone(),
         qubit_count: def.qubit_count,
         clbit_count,
         instructions,
-    })
+    };
+    Ok((circuit, spans))
 }
-pub fn lower(program: &Program) -> Result<Vec<Circuit>, LowerError> {
+pub fn lower(program: &Program) -> Result<Vec<(Circuit, Vec<( usize, usize )>)>, LowerError> {
     let mut names = HashSet::new();
     let mut circuits = Vec::new();
 
@@ -240,7 +245,21 @@ mod tests {
     use crate::lexer::lex;
     use crate::parser::parse;
 
-    fn lower_source(source: &str) -> Result<Vec<Circuit>, LowerError> {
+    fn lower_source(source: &str) -> Result<Vec<(Circuit, Vec<(usize, usize)>)>, LowerError> {
+        let tokens = lex(source).unwrap();
+        let program = parse(tokens).unwrap();
+        lower(&program)
+    }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::lex;
+    use crate::parser::parse;
+
+    fn lower_source(
+        source: &str,
+    ) -> Result<Vec<(Circuit, Vec<(usize, usize)>)>, LowerError> {
         let tokens = lex(source).unwrap();
         let program = parse(tokens).unwrap();
         lower(&program)
@@ -258,20 +277,19 @@ mod tests {
 
     #[test]
     fn lower_bell_circuit() {
-        let source = r#"
-    circuit bell(2) {
-        H q0
-        CNOT q0 q1
-        measure q0 -> c0
-        measure q1 -> c1
-    }
-    "#;
+        let source = r#"circuit bell(2) {
+    H q0
+    CNOT q0 q1
+    measure q0 -> c0
+    measure q1 -> c1
+}
+"#;
 
         let circuits = lower_source(source).unwrap();
 
         assert_eq!(circuits.len(), 1);
 
-        let circuit = &circuits[0];
+        let (circuit, spans) = &circuits[0];
 
         assert_eq!(circuit.name, "bell");
         assert_eq!(circuit.qubit_count, 2);
@@ -285,6 +303,8 @@ mod tests {
                 target: 1,
             })
         );
+
+        assert_eq!(spans.len(), 4);
     }
 
     #[test]
@@ -292,8 +312,9 @@ mod tests {
         let source = "circuit r(1, 3) { RZ(pi/2) q0 }";
 
         let circuits = lower_source(source).unwrap();
+        let (circuit, _spans) = &circuits[0];
 
-        let instruction = &circuits[0].instructions[0];
+        let instruction = &circuit.instructions[0];
 
         match instruction {
             Instruction::Gate(Gate::RZ { qubit, angle }) => {
@@ -307,19 +328,22 @@ mod tests {
             _ => panic!("expected RZ gate"),
         }
     }
+
     #[test]
     fn lower_empty_barrier_to_all_qubits() {
         let source = "circuit a(2) { barrier }";
 
         let circuits = lower_source(source).unwrap();
+        let (circuit, _spans) = &circuits[0];
 
         assert_eq!(
-            circuits[0].instructions[0],
+            circuit.instructions[0],
             Instruction::Barrier {
                 qubits: vec![0, 1],
             }
         );
     }
+
     #[test]
     fn error_unknown_gate() {
         let source = "circuit a(2) { CNOTT q0 q1 }";
@@ -330,6 +354,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 16);
     }
+
     #[test]
     fn error_missing_angle() {
         let source = "circuit a(1) { RZ q0 }";
@@ -343,6 +368,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 16);
     }
+
     #[test]
     fn error_unexpected_angle() {
         let source = "circuit a(1) { H(pi) q0 }";
@@ -353,6 +379,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 16);
     }
+
     #[test]
     fn error_wrong_gate_arity() {
         let source = "circuit a(2) { CNOT q0 }";
@@ -366,6 +393,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 16);
     }
+
     #[test]
     fn error_qubit_out_of_range() {
         let source = "circuit a(2) { H q5 }";
@@ -379,6 +407,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 18);
     }
+
     #[test]
     fn error_two_qubit_gate_same_qubit() {
         let source = "circuit a(2) { CNOT q1 q1 }";
@@ -392,6 +421,7 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 16);
     }
+
     #[test]
     fn error_clbit_out_of_range() {
         let source = "circuit a(2) { measure q0 -> c9 }";
@@ -405,14 +435,15 @@ mod tests {
         assert_eq!(err.line, 1);
         assert_eq!(err.col, 30);
     }
+
     #[test]
     fn error_duplicate_circuit_name() {
         let source = r#"circuit a(1) {
-    }
+}
 
-    circuit a(2) {
-    }
-    "#;
+circuit a(2) {
+}
+"#;
 
         let err = lower_source(source).unwrap_err();
 
@@ -421,8 +452,28 @@ mod tests {
             "duplicate circuit name 'a'"
         );
         assert_eq!(err.line, 4);
-        assert_eq!(err.col, 5);
+        assert_eq!(err.col, 1);
     }
 
-    
+    #[test]
+    fn lower_preserves_instruction_spans() {
+        let source = r#"circuit bell(2) {
+    H q0
+    CNOT q0 q1
+    measure q0 -> c0
+}
+"#;
+
+        let circuits = lower_source(source).unwrap();
+
+        let (circuit, spans) = &circuits[0];
+
+        assert_eq!(circuit.instructions.len(), 3);
+        assert_eq!(spans.len(), 3);
+
+        assert_eq!(spans[0], (2, 5));
+        assert_eq!(spans[1], (3, 5));
+        assert_eq!(spans[2], (4, 5));
+    }
+}
 }
