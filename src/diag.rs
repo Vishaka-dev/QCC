@@ -2,8 +2,15 @@ use crate::lexer::LexError;
 use crate::parser::ParseError;
 use crate::lower::LowerError;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Severity {
+    Error,
+    Warning,
+}
+
 // commmon error type for the diagnostic printer
 pub struct Diagnostic {
+    pub severity: Severity,
     pub message: String,
     pub line: usize,
     pub col: usize,
@@ -13,6 +20,7 @@ pub struct Diagnostic {
 impl From<LexError> for Diagnostic {
     fn from(err: LexError) -> Self {
         Diagnostic {
+            severity: Severity::Error,
             message: err.message,
             line: err.line,
             col: err.col,
@@ -24,6 +32,7 @@ impl From<LexError> for Diagnostic {
 impl From<ParseError> for Diagnostic {
     fn from(err: ParseError) -> Self {
         Diagnostic {
+            severity: Severity::Error,
             message: err.message,
             line: err.line,
             col: err.col,
@@ -35,6 +44,7 @@ impl From<ParseError> for Diagnostic {
 impl From<LowerError> for Diagnostic {
     fn from(err: LowerError) -> Self {
         Diagnostic {
+            severity: Severity::Error,
             message: err.message,
             line: err.line,
             col: err.col,
@@ -50,11 +60,16 @@ pub fn render(d: &Diagnostic, src: &str, path: &str) -> String {
 
     let printed_line = line.replace('\t', " ");
 
+    let label = match d.severity {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+    };
+
     let mut output = String::new();
 
     //header
     output.push_str(
-        &format!("error: {}\n", d.message)
+        &format!("{}: {}\n", label, d.message)
     );
     //location
     output.push_str(
@@ -104,6 +119,7 @@ mod test {
 #[test]
 fn render_tab_as_one_space() {
     let d = Diagnostic {
+        severity: Severity::Error,
         message: "bad gate".to_string(),
         line: 1,
         col: 3,
@@ -127,6 +143,7 @@ error: bad gate
 #[test]
 fn render_error_past_last_line_does_not_panic() {
     let d = Diagnostic {
+        severity: Severity::Error,
         message: "unexpected end of file".to_string(),
         line: 3,
         col: 1,
@@ -143,6 +160,7 @@ fn render_error_past_last_line_does_not_panic() {
 #[test]
 fn render_multi_digit_line_number() {
     let d = Diagnostic {
+        severity: Severity::Error,
         message: "bad token".to_string(),
         line: 10,
         col: 3,
@@ -176,6 +194,7 @@ error: bad token
 #[test]
 fn render_one_line_error() {
     let d = Diagnostic {
+        severity: Severity::Error,
         message: "something went wrong".to_string(),
         line: 1,
         col: 5,
