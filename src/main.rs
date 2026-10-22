@@ -6,6 +6,7 @@ mod passes;
 mod ast;
 mod lower;
 mod diag;
+mod validate;
 
 use diag::{ Diagnostic, render};
 use lexer::lex;

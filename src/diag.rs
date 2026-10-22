@@ -9,6 +9,7 @@ pub enum Severity {
 }
 
 // commmon error type for the diagnostic printer
+#[derive(Debug, Clone, PartialEq)]
 pub struct Diagnostic {
     pub severity: Severity,
     pub message: String,
