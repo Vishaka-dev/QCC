@@ -96,3 +96,104 @@ pub fn render(d: &Diagnostic, src: &str, path: &str) -> String {
 
     output
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+#[test]
+fn render_tab_as_one_space() {
+    let d = Diagnostic {
+        message: "bad gate".to_string(),
+        line: 1,
+        col: 3,
+    };
+
+    let src = "\tHX";
+
+    let actual = render(&d, src, "test.qc");
+
+    let expected = "\
+error: bad gate
+  --> test.qc:1:3
+  |
+1 |  HX
+  |   ^
+";
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn render_error_past_last_line_does_not_panic() {
+    let d = Diagnostic {
+        message: "unexpected end of file".to_string(),
+        line: 3,
+        col: 1,
+    };
+
+    let src = "line one\nline two";
+
+    let output = render(&d, src, "test.qc");
+
+    assert!(output.contains("unexpected end of file"));
+    assert!(output.contains("test.qc:3:1"));
+}
+
+#[test]
+fn render_multi_digit_line_number() {
+    let d = Diagnostic {
+        message: "bad token".to_string(),
+        line: 10,
+        col: 3,
+    };
+
+    let src = "\
+line1
+line2
+line3
+line4
+line5
+line6
+line7
+line8
+line9
+abcdef";
+
+    let actual = render(&d, src, "test.qc");
+
+    let expected = "\
+error: bad token
+  --> test.qc:10:3
+   |
+10 | abcdef
+   |   ^
+";
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn render_one_line_error() {
+    let d = Diagnostic {
+        message: "something went wrong".to_string(),
+        line: 1,
+        col: 5,
+    };
+
+    let src = "abcdefgh";
+    let path = "test.qc";
+
+    let actual = render(&d, src, path);
+
+    let expected = "\
+error: something went wrong
+  --> test.qc:1:5
+  |
+1 | abcdefgh
+  |     ^
+";
+
+    assert_eq!(actual, expected);
+}
+}
