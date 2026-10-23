@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::lexer::{ Spanned, Token } ;
+use crate::ir::{Circuit, Instruction};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParseError {

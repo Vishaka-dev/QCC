@@ -13,6 +13,7 @@ use lexer::lex;
 use parser::parse;
 use lower::lower;
 use ir::Circuit;
+use validate::validate;
 
 fn run(src: &str) -> Result< Vec<(Circuit, Vec<(usize, usize)>, (usize, usize))>, Diagnostic> {
     let tokens = lex(src).map_err(Diagnostic::from)?;
@@ -34,6 +35,19 @@ fn main() {
 
     match run(src) {
         Ok(circuits) => {
+            for (circuit, spans, circuit_pos) in &circuits {
+                let diagnostics = validate(
+                    circuit,
+                    spans,
+                    circuit_pos.0,
+                    circuit_pos.1,
+                );
+
+                for diagnostic in diagnostics {
+                    eprint!("{}", render(&diagnostic, src, path));
+                }
+            }
+
             println!("{:#?}", circuits);
         }
 
