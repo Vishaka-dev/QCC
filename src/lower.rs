@@ -189,7 +189,7 @@ fn lower_stmt(stmt: &Stmt, qubit_count: usize, clbit_count: usize) -> Result< Ve
     }
 }
 
-pub fn lower_circuit(def: &CircuitDef) -> Result<(Circuit, Vec<( usize, usize )>), LowerError> {
+pub fn lower_circuit(def: &CircuitDef) -> Result<(Circuit, Vec<( usize, usize )>, (usize, usize)), LowerError> {
     let clbit_count = def.clbit_count.unwrap_or(def.qubit_count);
 
     let mut instructions = Vec::new();
@@ -214,9 +214,9 @@ pub fn lower_circuit(def: &CircuitDef) -> Result<(Circuit, Vec<( usize, usize )>
         clbit_count,
         instructions,
     };
-    Ok((circuit, spans))
+    Ok((circuit, spans, (def.line, def.col), ))
 }
-pub fn lower(program: &Program) -> Result<Vec<(Circuit, Vec<( usize, usize )>)>, LowerError> {
+pub fn lower(program: &Program) -> Result<Vec<(Circuit, Vec<(usize, usize)>, (usize, usize))>, LowerError> {
     let mut names = HashSet::new();
     let mut circuits = Vec::new();
 
@@ -245,7 +245,7 @@ mod tests {
     use crate::lexer::lex;
     use crate::parser::parse;
 
-    fn lower_source(source: &str) -> Result<Vec<(Circuit, Vec<(usize, usize)>)>, LowerError> {
+    fn lower_source(source: &str) -> Result<Vec<(Circuit, Vec<(usize, usize)>, (usize, usize))>, LowerError> {
         let tokens = lex(source).unwrap();
         let program = parse(tokens).unwrap();
         lower(&program)
@@ -259,7 +259,7 @@ mod tests {
 
     fn lower_source(
         source: &str,
-    ) -> Result<Vec<(Circuit, Vec<(usize, usize)>)>, LowerError> {
+    ) -> Result<Vec<(Circuit, Vec<(usize, usize)>, (usize, usize))>, LowerError>{
         let tokens = lex(source).unwrap();
         let program = parse(tokens).unwrap();
         lower(&program)
@@ -289,7 +289,7 @@ mod tests {
 
         assert_eq!(circuits.len(), 1);
 
-        let (circuit, spans) = &circuits[0];
+        let (circuit, spans, _circuit_pos) = &circuits[0];
 
         assert_eq!(circuit.name, "bell");
         assert_eq!(circuit.qubit_count, 2);
@@ -312,7 +312,7 @@ mod tests {
         let source = "circuit r(1, 3) { RZ(pi/2) q0 }";
 
         let circuits = lower_source(source).unwrap();
-        let (circuit, _spans) = &circuits[0];
+        let (circuit, _spans, _circuit_pos) = &circuits[0];
 
         let instruction = &circuit.instructions[0];
 
@@ -334,8 +334,7 @@ mod tests {
         let source = "circuit a(2) { barrier }";
 
         let circuits = lower_source(source).unwrap();
-        let (circuit, _spans) = &circuits[0];
-
+        let (circuit, _spans, _circuit_pos) = &circuits[0];
         assert_eq!(
             circuit.instructions[0],
             Instruction::Barrier {
@@ -466,7 +465,7 @@ circuit a(2) {
 
         let circuits = lower_source(source).unwrap();
 
-        let (circuit, spans) = &circuits[0];
+        let (circuit, spans, _circuit_pos) = &circuits[0];
 
         assert_eq!(circuit.instructions.len(), 3);
         assert_eq!(spans.len(), 3);

@@ -14,7 +14,7 @@ use parser::parse;
 use lower::lower;
 use ir::Circuit;
 
-fn run(src: &str) -> Result< Vec<(Circuit, Vec< (usize, usize) >)>, Diagnostic> {
+fn run(src: &str) -> Result< Vec<(Circuit, Vec<(usize, usize)>, (usize, usize))>, Diagnostic> {
     let tokens = lex(src).map_err(Diagnostic::from)?;
     let program = parse(tokens).map_err(Diagnostic::from)?;
     let circuits = lower(&program).map_err(Diagnostic::from)?;

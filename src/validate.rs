@@ -1,33 +1,125 @@
 use crate::diag::{Diagnostic, Severity};
 use crate::ir::{Circuit, Instruction};
-use std::collections::HashSet;
+//use std::collections::HashSet;
 
-pub fn validate(circuit: &Circuit, spans: &[(usize, usize)]) -> Vec<Diagnostic> {
+fn validate_gate_after_measure(
+    circuit: &Circuit,
+    spans: &[(usize, usize)],
+) -> Vec<Diagnostic> {
     let mut diagnostics = Vec::new();
-    let mut measured = HashSet::new();
+    let mut measured = vec![false; circuit.qubit_count];
 
     for (index, instruction) in circuit.instructions.iter().enumerate() {
         let (line, col) = spans[index];
 
         match instruction {
-            Instruction::Measure { qubit, ..} => {
-                measured.insert(*qubit);
+            Instruction::Measure { qubit, .. } => {
+                measured[*qubit] = true;
             }
+
             Instruction::Gate(gate) => {
                 for qubit in gate.qubits() {
-                    if measured.contains(&qubit) {
-                        diagnostics.push( Diagnostic {
+                    if measured[qubit] {
+                        diagnostics.push(Diagnostic {
                             severity: Severity::Warning,
-                            message: format!("gate applied to q{} after it was measured", qubit),
+                            message: format!(
+                                "qubit q{} is used after being measured",
+                                qubit
+                            ),
                             line,
                             col,
                         });
+
+                        // Warn only once for this qubit.
+                        measured[qubit] = false;
                     }
                 }
             }
-            Instruction::Barrier {..} => {}
+
+            Instruction::Barrier { .. } => {}
         }
     }
+
+    diagnostics
+}
+
+pub fn validate_over_written_clbits(circuit: &Circuit, spans: &[(usize, usize)]) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+
+    let mut last_write: Vec<Option<usize>> = vec![None; circuit.clbit_count];
+
+    for (index, instruction) in circuit.instructions.iter().enumerate() {
+        if let Instruction::Measure { clbit, .. } = instruction {
+            if let Some(previous_index) = last_write[*clbit] {
+                let (previous_line, _) = spans[previous_index];
+                let (line, col) = spans[index];
+
+                diagnostics.push(Diagnostic {
+                    severity: Severity::Warning,
+                    message: format!(
+                        "classical bit c{} is overwritten (previous measurement at line {})",
+                        clbit,
+                        previous_line
+                    ),
+                    line,
+                    col,
+                });
+            }
+            last_write[*clbit] = Some(index);
+        }
+    }
+    diagnostics
+}
+
+fn validate_unused_qubits(
+    circuit: &Circuit,
+    circuit_line: usize,
+    circuit_col: usize,
+) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    let mut used = vec![false; circuit.qubit_count];
+
+    for instruction in &circuit.instructions {
+        match instruction {
+            Instruction::Gate(gate) => {
+                for qubit in gate.qubits() {
+                    used[qubit] = true;
+                }
+            }
+
+            Instruction::Measure { qubit, .. } => {
+                used[*qubit] = true;
+            }
+
+            Instruction::Barrier { qubits } => {
+                for qubit in qubits {
+                    used[*qubit] = true;
+                }
+            }
+        }
+    }
+
+    for (qubit, was_used) in used.iter().enumerate() {
+        if !was_used {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                message: format!("qubit q{} is never used", qubit),
+                line: circuit_line,
+                col: circuit_col,
+            });
+        }
+    }
+
+    diagnostics
+}
+
+pub fn validate(circuit: &Circuit, spans: &[(usize, usize)], circuit_line: usize, circuit_col: usize) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    //let mut measured = HashSet::new();
+
+    diagnostics.extend( validate_gate_after_measure(circuit, spans) );
+    diagnostics.extend( validate_over_written_clbits(circuit, spans) );
+    diagnostics.extend( validate_unused_qubits(circuit, circuit_line, circuit_col) );
 
     diagnostics
 }
@@ -45,9 +137,14 @@ mod tests {
         let program = parse(tokens).unwrap();
         let circuits = lower(&program).unwrap();
 
-        let (circuit, spans) = &circuits[0];
+        let (circuit, spans, circuit_pos) = &circuits[0];
 
-        validate(circuit, spans)
+        validate(
+            circuit,
+            spans,
+            circuit_pos.0,
+            circuit_pos.1,
+        )
     }
 
     #[test]
@@ -66,7 +163,7 @@ mod tests {
             diagnostics[0],
             Diagnostic {
                 severity: Severity::Warning,
-                message: "gate applied to q0 after it was measured".to_string(),
+                message: "qubit q0 is used after being measured".to_string(),
                 line: 3,
                 col: 5,
             }
