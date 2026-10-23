@@ -14,6 +14,28 @@ pub struct Parser {
     pos: usize,
 }
 
+pub fn optimize(circuit: &mut Circuit) {
+    let mut changed = true;
+
+    while changed {
+        changed = false;
+
+        let mut i = 0;
+
+        while i + 1 < circuit.instructions.len() {
+            // transformation here.
+            i += 1;
+        }
+    }
+}
+
+fn touches_any(instruction: &Instruction, qubits: &[usize]) -> bool {
+    instruction
+        .qubits()
+        .iter()
+        .any(|qubit| qubits.contains(qubit))
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Spanned>) -> Self {
         Self {
@@ -414,6 +436,37 @@ mod test {
 
         parser.expect(Token::Eof, "end of expression")?;
         Ok(expr)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::ir::Gate;
+
+        #[test]
+        fn instruction_on_different_qubit_does_not_block() {
+            let instruction = Instruction::Gate(Gate::X { qubit: 1 });
+
+            assert!(!touches_any(&instruction, &[0]));
+        }
+
+        #[test]
+        fn instruction_on_same_qubit_blocks() {
+            let instruction = Instruction::Gate(Gate::X { qubit: 0 });
+
+            assert!(touches_any(&instruction, &[0]));
+        }
+
+        #[test]
+        fn two_qubit_instruction_blocks_if_it_touches_target() {
+            let instruction = Instruction::Gate(Gate::CNOT {
+                control: 0,
+                target: 1,
+            });
+
+            assert!(touches_any(&instruction, &[0]));
+            assert!(touches_any(&instruction, &[1]));
+        }
     }
 
     #[test]
